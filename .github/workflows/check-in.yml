@@ -1,32 +1,26 @@
-# This is a basic workflow to help you get started with Actions
-
 name: "check-in"
 
-# Controls when the action will run. Triggers the workflow on push or pull request
-# events but only for the main branch
 on:
   push:
-    # branches: [ main ]
   pull_request:
     branches: [ main ]
+  # 设定每天北京时间早上 8 点自动签到 (0 8 * * * 是 UTC 时间，对应北京时间 16:00)
   schedule:
     - cron: '0 8 * * *'
+  # 允许手动在 Actions 页面点击运行
   workflow_dispatch:
 
 env:
   COMPOSER_FLAGS: "--ansi --no-interaction --no-progress --prefer-dist"
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
   build:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
+      # 升级到 v4 消除 Node.js 弃用警告
       - name: "Checkout"
-        uses: "actions/checkout@v3"
+        uses: "actions/checkout@v4"
 
       - name: "Install PHP"
         uses: "shivammathur/setup-php@v2"
@@ -40,11 +34,13 @@ jobs:
       - name: "Install locked dependencies"
         run: "composer config platform --unset && composer install ${{ env.COMPOSER_FLAGS }}"
 
-      - name: Working
+      # 将步骤重命名为 Run check-in script，确保运行正确
+      - name: "Run check-in script"
         env:
           COOKIE_SMZDM: ${{ secrets.COOKIE_SMZDM }}
-
-          PushDeerToken: "${{secrets.PUSHDEER_TOKEN}}"
-          DingtalkSecret: "${{secrets.DINGTALK_SECRET}}"
-          DingtalkToken: "${{secrets.DINGTALK_TOKEN}}"
+          PushDeerToken: "${{ secrets.PUSHDEER_TOKEN }}"
+          DingtalkSecret: "${{ secrets.DINGTALK_SECRET }}"
+          DingtalkToken: "${{ secrets.DINGTALK_TOKEN }}"
+        # 注意这里：如果你的脚本文件名是 check.php，请改成 php check.php
+        # 如果你在仓库根目录确认有 check_in.php，请保持当前写法
         run: php check_in.php
