@@ -1,7 +1,5 @@
 <?php
 
-// 注意：这里不需要 use Pusher 库了，我们直接使用 PHP 原生 cURL 来绕过验证码
-
 function smzdm(): array
 {
     $url = 'https://zhiyou.smzdm.com/user/checkin/jsonp_checkin';
@@ -12,17 +10,19 @@ function smzdm(): array
         'status' => false,
     ];
 
-    // 获取 GitHub Secrets 中传入的 Cookie
+    // 1. 获取 Cookie (支持环境变量，也支持本地测试时直接写死)
     $cookie = getenv('COOKIE_SMZDM');
+    // 如果本地测试没有配环境变量，请解开下面这行注释，填入你浏览器里最新的 Cookie
+    // $cookie = '你的浏览器复制出来的完整Cookie字符串'; 
+
     if (! $cookie) {
-        printf("检测不到 smzdm Cookie\n");
-        $resp['reason'] = 'cookie 不存在';
+        $resp['reason'] = 'cookie 不存在，请检查 GitHub Secrets';
         return $resp;
     }
 
-    // 获取代理配置 (强烈建议在 GitHub Secrets 中存为 PROXY_SOCKS5 格式: ip:port:user:pass)
-    // 如果本地测试，可以临时把下面这行改为： $proxy = '191.96.254.138:6185:pbskpsxc:8hqnavnp3r20';
+    // 2. 获取代理 (如果是本地测试，直接解开下一行注释)
     $proxy = getenv('PROXY_SOCKS5');
+    // $proxy = '191.96.254.138:6185:pbskpsxc:8hqnavnp3r20'; // 本地测试解开这行
 
     $headers = [
         'Accept: */*',
@@ -38,45 +38,38 @@ function smzdm(): array
         'Cookie: ' . $cookie,
     ];
 
-    // 初始化 cURL
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // 跳过 SSL 证书验证，防止报错
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); 
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-    curl_setopt($ch, CURLOPT_ENCODING, ''); // 自动处理 gzip 压缩
+    curl_setopt($ch, CURLOPT_ENCODING, ''); 
 
-    // 如果是本地测试，且没有配置 Secrets，可以直接解开下面这一行来测试代理
-    // $proxy = '191.96.254.138:6185:pbskpsxc:8hqnavnp3r20';
-
+    // 3. 设置代理
     if (!empty($proxy)) {
-        // 解析代理字符串格式: ip:port:user:pass
         $parts = explode(':', $proxy);
         if (count($parts) === 4) {
             list($ip, $port, $user, $pass) = $parts;
-            
-            // 设置 SOCKS5 代理
             curl_setopt($ch, CURLOPT_PROXY, "{$ip}:{$port}");
             curl_setopt($ch, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5);
-            // 设置代理用户名和密码
             curl_setopt($ch, CURLOPT_PROXYUSERPWD, "{$user}:{$pass}");
-        } else {
-            printf("代理格式错误，应为 ip:port:user:pass\n");
+            printf(">>> 正在通过代理 %s 发起请求...\n", $ip);
         }
     } else {
-        printf("未检测到 PROXY_SOCKS5 环境变量，将直连（大概率会被风控）\n");
+        printf(">>> 未使用代理，正在本地直连...\n");
     }
 
-    // 执行请求
+    // 4. 执行请求并获取结果
     $contents = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curlError = curl_error($ch);
+    $resolvedIp = curl_getinfo($ch, CURLINFO_PRIMARY_IP); // 获取实际连上的IP
     curl_close($ch);
 
-    // 打印 HTTP 状态码和原始返回内容
-    printf("HTTP状态码: %d\n", $httpCode);
-    printf("接口原始返回内容: %s\n", $contents);
+    printf(">>> HTTP状态码: %d\n", $httpCode);
+    printf(">>> 实际出口IP: %s\n", $resolvedIp); // 这行非常重要，看你到底走了哪个IP
+    printf(">>> 接口原始返回内容: %s\n", $contents);
 
     if ($curlError) {
         $resp['reason'] = 'cURL 请求错误: ' . $curlError;
@@ -84,14 +77,14 @@ function smzdm(): array
     }
 
     if (empty($contents)) {
-        $resp['reason'] = '请求失败，接口返回为空，可能是代理连不上或网络被拦截';
+        $resp['reason'] = '请求失败，接口返回为空';
         return $resp;
     }
 
     $response = json_decode($contents, true);
 
     if (!is_array($response)) {
-        $resp['reason'] = '解析接口数据失败，返回的数据不是有效的JSON格式';
+        $resp['reason'] = '解析接口数据失败';
         return $resp;
     }
 
