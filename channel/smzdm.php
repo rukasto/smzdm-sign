@@ -20,7 +20,6 @@ function smzdm(): array
         $resp['reason'] = 'cookie 不存在';
         return $resp;
     }
-    // $cookie = utf8_encode($cookie);
 
     $headers = [
         'Accept' => '*/*',
@@ -40,31 +39,56 @@ function smzdm(): array
         'headers' => $headers,
     ];
 
-    $channel = new Webhook();
-    $channel->setReqURL($url)
-        ->setMethod(Pusher::METHOD_GET)
-        ->setOptions($options);
+    try {
+        $channel = new Webhook();
+        $channel->setReqURL($url)
+            ->setMethod(Pusher::METHOD_GET)
+            ->setOptions($options);
 
-    $message = new WebhookMessage();
+        $message = new WebhookMessage();
 
-    $channel->request($message);
-    $contents = $channel->getContents();
-    $response = json_decode($contents, true);
+        $channel->request($message);
+        
+        // 获取返回内容
+        $contents = $channel->getContents();
+        
+        // 打印一下原生的返回内容，方便排错
+        printf("接口原始返回内容: %s\n", $contents);
 
-    if ($response['error_code'] !== 0) {
-        $resp['reason'] = $response['error_msg'];
-        return $resp;
+        // 判断返回内容是否为空
+        if (empty($contents)) {
+            $resp['reason'] = '请求失败，接口返回为空，可能是Cookie失效或网络被拦截';
+            return $resp;
+        }
+
+        $response = json_decode($contents, true);
+
+        // 检查 json_decode 是否成功，以及是否为空
+        if (!is_array($response)) {
+            $resp['reason'] = '解析接口数据失败，返回的数据不是有效的JSON格式';
+            return $resp;
+        }
+
+        if ($response['error_code'] !== 0) {
+            $resp['reason'] = $response['error_msg'] ?? '未知错误';
+            return $resp;
+        }
+
+        $data = $response['data'];
+        $resp['reason'] = sprintf("\n⭐⭐⭐签到成功 %s 天⭐⭐⭐\n🏅🏅🏅金币[%d]\n🏅🏅🏅积分[%d]\n🏅🏅🏅经验[%d]\n🏅🏅🏅等级[%d]\n🏅🏅补签卡[%s]",
+            $data['checkin_num'],
+            $data['gold'],
+            $data['point'],
+            $data['exp'],
+            $data['rank'],
+            $data['cards'],
+        );
+        $resp['status'] = true;
+
+    } catch (\Throwable $e) {
+        // 捕获网络请求等任何底层异常
+        $resp['reason'] = '发生底层异常: ' . $e->getMessage();
     }
 
-    $data = $response['data'];
-    $resp['reason'] = sprintf("\n⭐⭐⭐签到成功 %s 天⭐⭐⭐\n🏅🏅🏅金币[%d]\n🏅🏅🏅积分[%d]\n🏅🏅🏅经验[%d]\n🏅🏅🏅等级[%d]\n🏅🏅补签卡[%s]",
-        $data['checkin_num'],
-        $data['gold'],
-        $data['point'],
-        $data['exp'],
-        $data['rank'],
-        $data['cards'],
-    );
-    $resp['status'] = true;
     return $resp;
 }
