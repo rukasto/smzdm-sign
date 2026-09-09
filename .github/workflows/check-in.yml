@@ -4,7 +4,7 @@ on:
   push:
   pull_request:
     branches: [ main ]
-  # 设定每天北京时间早上 8 点自动签到 (0 8 * * * 是 UTC 时间，对应北京时间 16:00)
+  # 设定定时任务，这里默认是 UTC 时间，你可以自己调整
   schedule:
     - cron: '0 8 * * *'
   # 允许手动在 Actions 页面点击运行
@@ -18,7 +18,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 升级到 v4 消除 Node.js 弃用警告
       - name: "Checkout"
         uses: "actions/checkout@v4"
 
@@ -32,15 +31,17 @@ jobs:
           tools: composer
 
       - name: "Install locked dependencies"
-        run: "composer config platform --unset && composer install ${{ env.COMPOSER_FLAGS }}"
+        run: "composer install ${{ env.COMPOSER_FLAGS }}"
 
-      # 将步骤重命名为 Run check-in script，确保运行正确
+      # 运行签到脚本
       - name: "Run check-in script"
         env:
+          # 你的 Cookie
           COOKIE_SMZDM: ${{ secrets.COOKIE_SMZDM }}
+          # 新增：你的 SOCKS5 代理地址 (格式: ip:port:user:pass)
+          PROXY_SOCKS5: ${{ secrets.PROXY_SOCKS5 }}
+          # 推送通知的 Token（如果不需要可以保留空）
           PushDeerToken: "${{ secrets.PUSHDEER_TOKEN }}"
           DingtalkSecret: "${{ secrets.DINGTALK_SECRET }}"
           DingtalkToken: "${{ secrets.DINGTALK_TOKEN }}"
-        # 注意这里：如果你的脚本文件名是 check.php，请改成 php check.php
-        # 如果你在仓库根目录确认有 check_in.php，请保持当前写法
         run: php check_in.php
