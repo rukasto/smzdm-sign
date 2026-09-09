@@ -4,10 +4,8 @@ on:
   push:
   pull_request:
     branches: [ main ]
-  # 设定定时任务，这里默认是 UTC 时间，你可以自己调整
   schedule:
     - cron: '0 8 * * *'
-  # 允许手动在 Actions 页面点击运行
   workflow_dispatch:
 
 env:
@@ -33,15 +31,8 @@ jobs:
       - name: "Install locked dependencies"
         run: "composer install ${{ env.COMPOSER_FLAGS }}"
 
-      # 运行签到脚本
       - name: "Run check-in script"
         env:
-          # 你的 Cookie
           COOKIE_SMZDM: ${{ secrets.COOKIE_SMZDM }}
-          # 新增：你的 SOCKS5 代理地址 (格式: ip:port:user:pass)
           PROXY_SOCKS5: ${{ secrets.PROXY_SOCKS5 }}
-          # 推送通知的 Token（如果不需要可以保留空）
-          PushDeerToken: "${{ secrets.PUSHDEER_TOKEN }}"
-          DingtalkSecret: "${{ secrets.DINGTALK_SECRET }}"
-          DingtalkToken: "${{ secrets.DINGTALK_TOKEN }}"
         run: php check_in.php
